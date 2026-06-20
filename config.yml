@@ -1,5 +1,6 @@
 # Dates you are available (YYYY-MM-DD format)
 dates:
+  - "2026-06-29"
   - "2026-07-04"
   - "2026-07-05"
   - "2026-07-12"
@@ -13,3 +14,6 @@ trailheads:
   - name: "Green Lakes / Soda Creek"
     tour_id: "2003"
     url: "https://www.recreation.gov/ticket/300009/ticket/2003"
+  - name: "Crater Ditch"
+    tour_id: "2001"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2001"
