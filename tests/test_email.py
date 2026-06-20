@@ -1,10 +1,7 @@
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from check_permits import send_email
-
 
 AVAILABLE = {
     "Eagle Creek Trailhead": ["2026-07-04", "2026-07-05"],
@@ -37,6 +34,7 @@ def run_send_email(env_extra=None):
 # 1. SMTP_SSL is used (no real email sent)
 # ---------------------------------------------------------------------------
 
+
 def test_smtp_ssl_is_used():
     mock_smtp_cls, _ = run_send_email()
     mock_smtp_cls.assert_called_once_with("smtp.gmail.com", 465)
@@ -45,6 +43,7 @@ def test_smtp_ssl_is_used():
 # ---------------------------------------------------------------------------
 # 2. Email subject
 # ---------------------------------------------------------------------------
+
 
 def test_email_subject():
     env = {**BASE_ENV}
@@ -65,8 +64,8 @@ def test_email_subject():
 # 3. Email body contains trailhead names, dates, and booking URLs
 # ---------------------------------------------------------------------------
 
+
 def test_email_body_contains_trailhead_names_dates_and_urls():
-    import base64
     import email as email_lib
 
     env = {**BASE_ENV}
@@ -103,6 +102,7 @@ def test_email_body_contains_trailhead_names_dates_and_urls():
 # 4. Recipient: NOTIFY_EMAIL when set, else GMAIL_ADDRESS
 # ---------------------------------------------------------------------------
 
+
 def test_sends_to_notify_email_when_set():
     mock_smtp_cls, mock_server = run_send_email({"NOTIFY_EMAIL": "notify@example.com"})
     args = mock_server.sendmail.call_args[0]
@@ -126,6 +126,7 @@ def test_sends_to_gmail_address_when_notify_email_not_set():
 # ---------------------------------------------------------------------------
 # 5. Login uses correct credentials from env vars
 # ---------------------------------------------------------------------------
+
 
 def test_login_uses_correct_credentials():
     mock_smtp_cls, mock_server = run_send_email()

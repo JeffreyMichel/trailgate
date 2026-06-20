@@ -1,19 +1,18 @@
 """Tests for find_available() in check_permits.py."""
-import sys
-import os
-from unittest.mock import patch, MagicMock
 
-import pytest
+import os
+import sys
+from unittest.mock import MagicMock, patch
 
 # Ensure the project root is on the path so check_permits can be imported.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from check_permits import find_available
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_response(payload: dict) -> MagicMock:
     """Return a mock requests.Response whose .json() returns the given payload."""
@@ -40,6 +39,7 @@ def _daily(date_str: str, tour_id: str, reservable: int) -> dict:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestFindAvailable:
     CONFIG_DATE = "2026-07-04"

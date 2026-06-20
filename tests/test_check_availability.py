@@ -1,4 +1,5 @@
 """Tests for check_availability() and the retry behavior."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,8 +31,9 @@ def test_builds_correct_url_and_params():
 def test_retries_then_succeeds():
     failing = requests.ConnectionError("boom")
     good = _ok_response({"ok": True})
-    with patch("check_permits.requests.get", side_effect=[failing, good]) as mock_get, patch(
-        "check_permits.time.sleep"
+    with (
+        patch("check_permits.requests.get", side_effect=[failing, good]) as mock_get,
+        patch("check_permits.time.sleep"),
     ):
         result = check_availability("2026", "07")
 
@@ -40,9 +42,12 @@ def test_retries_then_succeeds():
 
 
 def test_raises_after_exhausting_retries():
-    with patch(
-        "check_permits.requests.get", side_effect=requests.ConnectionError("boom")
-    ) as mock_get, patch("check_permits.time.sleep"):
+    with (
+        patch(
+            "check_permits.requests.get", side_effect=requests.ConnectionError("boom")
+        ) as mock_get,
+        patch("check_permits.time.sleep"),
+    ):
         with pytest.raises(requests.RequestException):
             check_availability("2026", "07")
 

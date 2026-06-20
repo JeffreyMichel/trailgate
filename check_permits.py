@@ -12,9 +12,7 @@ import yaml
 
 FACILITY_ID = "300009"
 BASE_URL = f"https://www.recreation.gov/api/ticket/availability/facility/{FACILITY_ID}/monthlyAvailabilitySummaryView"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
 
 # Network retry behavior for recreation.gov, which rate-limits / blocks scrapers.
 MAX_RETRIES = 3
@@ -53,19 +51,43 @@ def check_availability(year: str, month: str) -> dict:
     raise last_error  # type: ignore[misc]
 
 
+def _trailhead_dates(trailhead: dict, default_dates: list[str]) -> list[str]:
+    """Dates to check for a given trailhead.
+
+    A trailhead may override the global ``dates`` with its own ``dates`` list;
+    otherwise it falls back to the config-level default. Order is preserved and
+    duplicates removed.
+    """
+    dates = trailhead.get("dates", default_dates)
+    return list(dict.fromkeys(dates))
+
+
 def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
     """Check availability for every trailhead/date.
+
+    Each trailhead is checked against the global ``config["dates"]`` unless it
+    defines its own ``dates`` list, which scopes that trailhead to those dates.
 
     Returns ``(found, all_failed)`` where ``found`` is
     ``{trailhead_name: [available_date, ...]}`` and ``all_failed`` is True when
     every API request errored (so the caller can distinguish a broken checker
     from a genuine "nothing available" result).
     """
-    target_dates = list(dict.fromkeys(config["dates"]))  # deduplicate, preserve order
+    default_dates = list(dict.fromkeys(config["dates"]))  # deduplicate, preserve order
+
+    # Resolve the set of dates each trailhead actually cares about.
+    dates_by_trailhead = {
+        t["name"]: _trailhead_dates(t, default_dates) for t in config["trailheads"]
+    }
+
+    # Union of every relevant date determines which months we need to query.
+    all_target_dates = list(
+        dict.fromkeys(d for dates in dates_by_trailhead.values() for d in dates)
+    )
 
     # Group dates by year-month to minimize API calls
     by_month: dict[str, list[str]] = defaultdict(list)
-    for d in target_dates:
+    for d in all_target_dates:
         dt = datetime.strptime(d, "%Y-%m-%d")
         by_month[dt.strftime("%Y-%m")].append(d)
 
@@ -93,6 +115,8 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
             tours = date_data.get("tour_availability_summary_view_by_tour_id", {})
             for trailhead in config["trailheads"]:
                 name = trailhead["name"]
+                if date_str not in dates_by_trailhead[name]:
+                    continue  # this date isn't in scope for this trailhead
                 tour_id = trailhead["tour_id"]
                 tour = tours.get(tour_id, {})
                 reservable = tour.get("reservable") or 0
@@ -109,7 +133,7 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
 def build_email_body(available: dict[str, list[str]], trailhead_map: dict) -> str:
     lines = ["Permit availability found for your dates!\n"]
     for name, dates in available.items():
-        url = trailhead_map[name]
+        url = trailhead_map.get(name, "https://www.recreation.gov/ticket/300009")
         for d in sorted(dates):
             lines.append(f"  {name} — {d}")
             lines.append(f"  Book now: {url}?date={d}\n")
@@ -135,12 +159,38 @@ def send_email(available: dict[str, list[str]], trailhead_map: dict):
     print(f"Email sent to {notify_address}")
 
 
+def send_failure_email(reason: str) -> None:
+    """Best-effort alert when the checker itself breaks.
+
+    Sent so a silently-failing job (e.g. recreation.gov blocking us) is visible
+    without having to watch the GitHub Actions dashboard. Swallows its own
+    errors — if we can't even send mail, we still want the original failure to
+    surface via the non-zero exit.
+    """
+    gmail_address = os.environ.get("GMAIL_ADDRESS")
+    gmail_password = os.environ.get("GMAIL_APP_PASSWORD")
+    if not (gmail_address and gmail_password):
+        return
+    notify_address = os.environ.get("NOTIFY_EMAIL", gmail_address)
+
+    msg = MIMEText(reason, "plain")
+    msg["Subject"] = "Trailgate: Checker FAILED"
+    msg["From"] = gmail_address
+    msg["To"] = notify_address
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(gmail_address, gmail_password)
+            server.sendmail(gmail_address, notify_address, msg.as_string())
+        print(f"Failure alert sent to {notify_address}", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001 - alerting is best-effort
+        print(f"Could not send failure alert: {e}", file=sys.stderr)
+
+
 def check_env() -> None:
     missing = [v for v in REQUIRED_ENV_VARS if not os.environ.get(v)]
     if missing:
-        raise SystemExit(
-            f"Missing required environment variable(s): {', '.join(missing)}"
-        )
+        raise SystemExit(f"Missing required environment variable(s): {', '.join(missing)}")
 
 
 def main():
@@ -156,11 +206,14 @@ def main():
 
     if all_failed:
         # Every request errored — the checker is broken, not the permits sold out.
-        # Exit non-zero so the scheduled job goes red instead of silently passing.
-        raise SystemExit(
+        # Email an alert and exit non-zero so the scheduled job goes red instead
+        # of silently passing.
+        reason = (
             "ERROR: all availability requests failed. "
             "recreation.gov may be blocking requests or its API may have changed."
         )
+        send_failure_email(reason)
+        raise SystemExit(reason)
 
     if available:
         send_email(available, trailhead_map)
