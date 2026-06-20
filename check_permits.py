@@ -112,7 +112,7 @@ def build_email_body(available: dict[str, list[str]], trailhead_map: dict) -> st
         url = trailhead_map[name]
         for d in sorted(dates):
             lines.append(f"  {name} — {d}")
-            lines.append(f"  Book now: {url}\n")
+            lines.append(f"  Book now: {url}?date={d}\n")
     return "\n".join(lines)
 
 
