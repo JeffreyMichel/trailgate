@@ -1,0 +1,15 @@
+# Dates you are available (YYYY-MM-DD format)
+dates:
+  - "2026-07-04"
+  - "2026-07-05"
+  - "2026-07-12"
+  - "2026-07-19"
+
+# Trailheads to check - add or remove as needed
+trailheads:
+  - name: "Devils Lake / South Sister"
+    tour_id: "10088687"
+    url: "https://www.recreation.gov/ticket/300009/ticket/10088687"
+  - name: "Green Lakes / Soda Creek"
+    tour_id: "2003"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2003"
