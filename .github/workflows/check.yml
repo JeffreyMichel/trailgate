@@ -3,7 +3,7 @@ name: Check Permit Availability
 on:
   schedule:
     # Runs daily at 14:01 UTC = 7:01 AM PDT (summer) / 7:00 AM PST (winter)
-    - cron: "1 14 * * *"
+    - cron: "1 13,14 * * *"
   workflow_dispatch: # allows manual trigger from GitHub UI
 
 jobs:
