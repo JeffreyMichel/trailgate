@@ -11,7 +11,7 @@ import requests
 import yaml
 
 FACILITY_ID = "300009"
-BASE_URL = f"https://www.recreation.gov/api/ticket/availability/facility/{FACILITY_ID}"
+BASE_URL = f"https://www.recreation.gov/api/ticket/availability/facility/{FACILITY_ID}/monthlyAvailabilitySummaryView"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 }
@@ -28,13 +28,15 @@ def load_config(path="config.yml"):
         return yaml.safe_load(f)
 
 
-def check_availability(tour_id: str, year: str, month: str) -> dict:
-    url = f"{BASE_URL}/{tour_id}/monthlyAvailabilitySummaryView"
+def check_availability(year: str, month: str) -> dict:
     last_error: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = requests.get(
-                url, params={"year": year, "month": month}, headers=HEADERS, timeout=15
+                BASE_URL,
+                params={"year": year, "month": month, "inventoryBucket": "FIT"},
+                headers=HEADERS,
+                timeout=15,
             )
             resp.raise_for_status()
             return resp.json()
@@ -71,30 +73,27 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
     attempts = 0
     failures = 0
 
-    for trailhead in config["trailheads"]:
-        name = trailhead["name"]
-        tour_id = trailhead["tour_id"]
+    # One API call per month covers all trailheads — response includes every tour_id
+    for ym, dates_in_month in by_month.items():
+        year, month = ym.split("-")
+        attempts += 1
+        try:
+            data = check_availability(year, month)
+        except requests.RequestException as e:
+            failures += 1
+            print(f"  request error ({ym}): {e}", file=sys.stderr)
+            continue
 
-        for ym, dates_in_month in by_month.items():
-            year, month = ym.split("-")
-            attempts += 1
-            try:
-                data = check_availability(tour_id, year, month)
-            except requests.RequestException as e:
-                failures += 1
-                print(f"  request error for {name} ({ym}): {e}", file=sys.stderr)
+        daily = data.get("facility_availability_summary_view_by_local_date", {})
+
+        for date_str in dates_in_month:
+            date_data = daily.get(date_str)
+            if not date_data:
                 continue
-
-            daily = (
-                data.get("payload", {})
-                .get("facility_availability_summary_view_by_local_date", {})
-            )
-
-            for date_str in dates_in_month:
-                date_data = daily.get(date_str)
-                if not date_data:
-                    continue
-                tours = date_data.get("tour_availability_summary_view_by_tour_id", {})
+            tours = date_data.get("tour_availability_summary_view_by_tour_id", {})
+            for trailhead in config["trailheads"]:
+                name = trailhead["name"]
+                tour_id = trailhead["tour_id"]
                 tour = tours.get(tour_id, {})
                 reservable = tour.get("reservable") or 0
                 if reservable > 0:

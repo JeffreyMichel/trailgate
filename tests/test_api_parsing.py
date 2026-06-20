@@ -18,7 +18,7 @@ from check_permits import find_available
 def _make_response(payload: dict) -> MagicMock:
     """Return a mock requests.Response whose .json() returns the given payload."""
     mock_resp = MagicMock()
-    mock_resp.json.return_value = {"payload": {"facility_availability_summary_view_by_local_date": payload}}
+    mock_resp.json.return_value = {"facility_availability_summary_view_by_local_date": payload}
     mock_resp.raise_for_status.return_value = None
     return mock_resp
 

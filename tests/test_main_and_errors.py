@@ -17,7 +17,7 @@ CONFIG = {
 def _make_response(daily: dict) -> MagicMock:
     resp = MagicMock()
     resp.json.return_value = {
-        "payload": {"facility_availability_summary_view_by_local_date": daily}
+        "facility_availability_summary_view_by_local_date": daily
     }
     resp.raise_for_status.return_value = None
     return resp
