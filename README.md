@@ -58,6 +58,6 @@ GMAIL_ADDRESS=you@gmail.com GMAIL_APP_PASSWORD=xxxx NOTIFY_EMAIL=you@gmail.com p
 ## Tests
 
 ```bash
-pip install pytest
+pip install -r requirements-dev.txt
 python -m pytest tests/ -v
 ```

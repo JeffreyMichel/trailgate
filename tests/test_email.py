@@ -11,8 +11,6 @@ AVAILABLE = {
     "Mirror Lake Trailhead": ["2026-08-01"],
 }
 
-CONFIG = {}  # send_email doesn't use config directly
-
 TRAILHEAD_MAP = {
     "Eagle Creek Trailhead": "https://www.recreation.gov/permits/123",
     "Mirror Lake Trailhead": "https://www.recreation.gov/permits/456",
@@ -31,7 +29,7 @@ def run_send_email(env_extra=None):
             mock_server = MagicMock()
             mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_server)
             mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
-            send_email(AVAILABLE, CONFIG, TRAILHEAD_MAP)
+            send_email(AVAILABLE, TRAILHEAD_MAP)
             return mock_smtp_cls, mock_server
 
 
@@ -55,7 +53,7 @@ def test_email_subject():
             mock_server = MagicMock()
             mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_server)
             mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
-            send_email(AVAILABLE, CONFIG, TRAILHEAD_MAP)
+            send_email(AVAILABLE, TRAILHEAD_MAP)
 
             # Capture the message string passed to sendmail
             args = mock_server.sendmail.call_args
@@ -77,7 +75,7 @@ def test_email_body_contains_trailhead_names_dates_and_urls():
             mock_server = MagicMock()
             mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_server)
             mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
-            send_email(AVAILABLE, CONFIG, TRAILHEAD_MAP)
+            send_email(AVAILABLE, TRAILHEAD_MAP)
 
             raw_message = mock_server.sendmail.call_args[0][2]
             msg = email_lib.message_from_string(raw_message)
@@ -120,7 +118,7 @@ def test_sends_to_gmail_address_when_notify_email_not_set():
             mock_server = MagicMock()
             mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_server)
             mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
-            send_email(AVAILABLE, CONFIG, TRAILHEAD_MAP)
+            send_email(AVAILABLE, TRAILHEAD_MAP)
             args = mock_server.sendmail.call_args[0]
             assert args[1] == "sender@gmail.com"
 

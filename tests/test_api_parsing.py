@@ -60,7 +60,7 @@ class TestFindAvailable:
         payload = _daily(self.CONFIG_DATE, self.TOUR_ID, reservable=5)
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)):
-            result = find_available(self._base_config)
+            result, _ = find_available(self._base_config)
 
         assert self.NAME in result
         assert self.CONFIG_DATE in result[self.NAME]
@@ -70,7 +70,7 @@ class TestFindAvailable:
         payload = _daily(self.CONFIG_DATE, self.TOUR_ID, reservable=0)
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)):
-            result = find_available(self._base_config)
+            result, _ = find_available(self._base_config)
 
         # Key may be absent or the list may be empty — either is correct.
         assert result.get(self.NAME, []) == []
@@ -79,7 +79,7 @@ class TestFindAvailable:
         """If the API response contains no entry for a requested date, skip it."""
         # Return an empty daily payload — the date simply isn't present.
         with patch("check_permits.requests.get", return_value=_make_response({})):
-            result = find_available(self._base_config)
+            result, _ = find_available(self._base_config)
 
         assert result.get(self.NAME, []) == []
 
@@ -92,7 +92,7 @@ class TestFindAvailable:
         }
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)):
-            result = find_available(self._base_config)
+            result, _ = find_available(self._base_config)
 
         assert extra_date not in result.get(self.NAME, [])
         assert self.CONFIG_DATE in result[self.NAME]
@@ -121,7 +121,7 @@ class TestFindAvailable:
         }
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)):
-            result = find_available(config)
+            result, _ = find_available(config)
 
         assert date in result[name_a]
         assert date in result[name_b]
@@ -154,7 +154,7 @@ class TestFindAvailable:
         }
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)):
-            result = find_available(config)
+            result, _ = find_available(config)
 
         assert date in result.get(name_a, [])
         assert result.get(name_b, []) == []
@@ -176,7 +176,7 @@ class TestFindAvailable:
         }
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)) as mock_get:
-            result = find_available(config)
+            result, _ = find_available(config)
 
         # Only one API call should have been made (same year-month).
         assert mock_get.call_count == 1
@@ -202,7 +202,7 @@ class TestFindAvailable:
         }
 
         with patch("check_permits.requests.get", side_effect=responses) as mock_get:
-            result = find_available(config)
+            result, _ = find_available(config)
 
         assert mock_get.call_count == 2
         assert date_jul in result[self.NAME]
