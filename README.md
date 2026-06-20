@@ -60,6 +60,22 @@ trailhead only on certain dates, give it its own `dates` list:
           - "2026-07-04"
 ```
 
+#### Fields and defaults
+
+| Field | Level | Required | Default |
+|---|---|---|---|
+| `facility_id` | facility | Yes | — |
+| `name` | facility | No | falls back to `facility_id` in log output |
+| `dates` | facility | No* | empty — see note below |
+| `trailheads` | facility | Yes | — |
+| `name`, `tour_id`, `url` | trailhead | Yes | — |
+| `dates` | trailhead | No | inherits the facility's `dates` |
+
+\* A facility's `dates` is only optional if **every** trailhead under it defines
+its own `dates`. If a facility has no `dates` and a trailhead doesn't either,
+that trailhead is checked against an empty date list — i.e. **nothing happens
+for it** (no API call, no error). Always set `dates` at one level or the other.
+
 ### 2. Add GitHub Secrets
 
 In your repo go to **Settings → Secrets and variables → Actions** and add:
