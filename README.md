@@ -1,46 +1,80 @@
 # Trailgate
 
-Checks [Recreation.gov](https://www.recreation.gov) daily for Central Cascades Wilderness permit availability on your available dates and emails you when spots open up.
+Checks [Recreation.gov](https://www.recreation.gov) daily for permit availability — across one or more facilities — on your available dates and emails you when spots open up.
 
 ## How it works
 
-A GitHub Action runs daily in the early morning Pacific time (twice, at ~6 and ~7 AM, to cover the PST/PDT shift). It reads your available dates and target trailheads from `config.yml`, queries the Recreation.gov API, and sends you an email with a direct booking link if any permits are available. If every request fails (e.g. recreation.gov blocks the checker), the job exits non-zero and emails you a failure alert.
+A GitHub Action runs daily in the early morning Pacific time (twice, at ~6 and ~7 AM, to cover the PST/PDT shift). It reads your facilities, dates, and target trailheads from `config.yml`, queries the Recreation.gov API, and sends you an email with a direct booking link if any permits are available. If every request fails (e.g. recreation.gov blocks the checker), the job exits non-zero and emails you a failure alert.
 
 ## Setup
 
-### 1. Configure your dates and trailheads
+### 1. Configure your facilities, dates, and trailheads
 
-Edit `config.yml`. List the dates you're available and the trailheads to watch:
+Edit `config.yml`. Each entry under `facilities` is a recreation.gov facility
+with its own `facility_id`, `dates`, and `trailheads`:
 
 ```yaml
-dates:
-  - "2026-07-04"
-  - "2026-07-12"
+facilities:
+  - name: "Central Cascades Wilderness"
+    facility_id: "300009"
+    dates:
+      - "2026-07-04"
+      - "2026-07-12"
+    trailheads:
+      - name: "Green Lakes / Soda Creek"
+        tour_id: "2003"
+        url: "https://www.recreation.gov/ticket/300009/ticket/2003"
+      - name: "Devils Lake / South Sister"
+        tour_id: "10088687"
+        url: "https://www.recreation.gov/ticket/300009/ticket/10088687"
 
-trailheads:
-  - name: "Green Lakes / Soda Creek"
-    tour_id: "2003"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2003"
-  - name: "Devils Lake / South Sister"
-    tour_id: "10088687"
-    url: "https://www.recreation.gov/ticket/300009/ticket/10088687"
+  - name: "Enchantment Permit Area"
+    facility_id: "233273"
+    dates:
+      - "2026-08-01"
+    trailheads:
+      - name: "Snow Lakes"
+        tour_id: "4675311"
+        url: "https://www.recreation.gov/ticket/233273/ticket/4675311"
 ```
 
-The repo ships with all Central Cascades trailheads pre-populated — trim the list to the ones you care about.
+The repo ships with the Central Cascades facility and all its trailheads pre-populated — trim or add as needed.
+
+#### Adding a facility
+
+Find the facility on Recreation.gov. Its id is the number in the URL
+(`.../ticket/300009/...` → `"300009"`). Add a new entry under `facilities`
+with that `facility_id`, the `dates` you want to check, and its trailheads.
 
 #### Scoping a trailhead to specific dates
 
-By default every trailhead is checked against the global `dates`. To watch a
+By default every trailhead is checked against its facility's `dates`. To watch a
 trailhead only on certain dates, give it its own `dates` list:
 
 ```yaml
-trailheads:
-  - name: "Devils Lake / South Sister"
-    tour_id: "10088687"
-    url: "https://www.recreation.gov/ticket/300009/ticket/10088687"
-    dates:               # overrides the global dates for this trailhead only
-      - "2026-07-04"
+    trailheads:
+      - name: "Devils Lake / South Sister"
+        tour_id: "10088687"
+        url: "https://www.recreation.gov/ticket/300009/ticket/10088687"
+        dates:               # overrides the facility dates for this trailhead only
+          - "2026-07-04"
 ```
+
+#### Fields and defaults
+
+| Field | Level | Required | Default |
+|---|---|---|---|
+| `facility_id` | facility | Yes | — |
+| `name` | facility | No | falls back to `facility_id` in log output |
+| `dates` | facility | No* | empty — see note below |
+| `trailheads` | facility | Yes | — |
+| `name`, `tour_id`, `url` | trailhead | Yes | — |
+| `dates` | trailhead | No | inherits the facility's `dates` |
+
+\* A facility's `dates` is only optional if **every** trailhead under it defines
+its own `dates`. If a facility has no `dates` and a trailhead doesn't either,
+that trailhead is checked against an empty date list — i.e. **nothing happens
+for it** (no API call, no error). Always set `dates` at one level or the other.
 
 ### 2. Add GitHub Secrets
 
@@ -60,9 +94,10 @@ Go to **Actions → Check Permit Availability → Run workflow** to run it immed
 
 Find the trailhead on Recreation.gov. The URL will look like:
 ```
-https://www.recreation.gov/ticket/300009/ticket/{tour_id}
+https://www.recreation.gov/ticket/{facility_id}/ticket/{tour_id}
 ```
-Copy the `tour_id` from the URL and add a new entry to `config.yml`.
+Copy the `tour_id` from the URL and add a new entry under the facility's
+`trailheads` list in `config.yml`.
 
 ## Running locally
 

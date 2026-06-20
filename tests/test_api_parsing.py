@@ -22,6 +22,20 @@ def _make_response(payload: dict) -> MagicMock:
     return mock_resp
 
 
+def _facility_config(dates: list, trailheads: list, facility_id: str = "300009") -> dict:
+    """Wrap dates/trailheads into the single-facility config the app expects."""
+    return {
+        "facilities": [
+            {
+                "name": "Test Facility",
+                "facility_id": facility_id,
+                "dates": dates,
+                "trailheads": trailheads,
+            }
+        ]
+    }
+
+
 def _daily(date_str: str, tour_id: str, reservable: int) -> dict:
     """Build the daily availability dict for a single date / tour."""
     return {
@@ -48,12 +62,10 @@ class TestFindAvailable:
 
     @property
     def _base_config(self):
-        return {
-            "dates": [self.CONFIG_DATE],
-            "trailheads": [
-                {"name": self.NAME, "tour_id": self.TOUR_ID, "url": "https://example.com"}
-            ],
-        }
+        return _facility_config(
+            dates=[self.CONFIG_DATE],
+            trailheads=[{"name": self.NAME, "tour_id": self.TOUR_ID, "url": "https://example.com"}],
+        )
 
     def test_date_with_reservable_spots_is_included(self):
         """A date whose reservable count is > 0 should appear in the result."""
@@ -112,13 +124,13 @@ class TestFindAvailable:
             }
         }
 
-        config = {
-            "dates": [date],
-            "trailheads": [
+        config = _facility_config(
+            dates=[date],
+            trailheads=[
                 {"name": name_a, "tour_id": tour_a, "url": "https://example.com/a"},
                 {"name": name_b, "tour_id": tour_b, "url": "https://example.com/b"},
             ],
-        }
+        )
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)):
             result, _ = find_available(config)
@@ -145,13 +157,13 @@ class TestFindAvailable:
             }
         }
 
-        config = {
-            "dates": [date],
-            "trailheads": [
+        config = _facility_config(
+            dates=[date],
+            trailheads=[
                 {"name": name_a, "tour_id": tour_a, "url": "https://example.com/a"},
                 {"name": name_b, "tour_id": tour_b, "url": "https://example.com/b"},
             ],
-        }
+        )
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)):
             result, _ = find_available(config)
@@ -170,10 +182,10 @@ class TestFindAvailable:
             **_daily(date2, tour_id, reservable=0),
         }
 
-        config = {
-            "dates": [date1, date2],
-            "trailheads": [{"name": self.NAME, "tour_id": tour_id, "url": "https://example.com"}],
-        }
+        config = _facility_config(
+            dates=[date1, date2],
+            trailheads=[{"name": self.NAME, "tour_id": tour_id, "url": "https://example.com"}],
+        )
 
         with patch("check_permits.requests.get", return_value=_make_response(payload)) as mock_get:
             result, _ = find_available(config)
@@ -196,10 +208,10 @@ class TestFindAvailable:
 
         responses = [_make_response(payload_jul), _make_response(payload_aug)]
 
-        config = {
-            "dates": [date_jul, date_aug],
-            "trailheads": [{"name": self.NAME, "tour_id": tour_id, "url": "https://example.com"}],
-        }
+        config = _facility_config(
+            dates=[date_jul, date_aug],
+            trailheads=[{"name": self.NAME, "tour_id": tour_id, "url": "https://example.com"}],
+        )
 
         with patch("check_permits.requests.get", side_effect=responses) as mock_get:
             result, _ = find_available(config)
