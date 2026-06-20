@@ -10,9 +10,16 @@ from email.mime.text import MIMEText
 import requests
 import yaml
 
-FACILITY_ID = "300009"
-BASE_URL = f"https://www.recreation.gov/api/ticket/availability/facility/{FACILITY_ID}/monthlyAvailabilitySummaryView"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+
+
+def availability_url(facility_id: str) -> str:
+    """Recreation.gov monthly-availability endpoint for a given facility."""
+    return (
+        "https://www.recreation.gov/api/ticket/availability/facility/"
+        f"{facility_id}/monthlyAvailabilitySummaryView"
+    )
+
 
 # Network retry behavior for recreation.gov, which rate-limits / blocks scrapers.
 MAX_RETRIES = 3
@@ -26,12 +33,12 @@ def load_config(path="config.yml"):
         return yaml.safe_load(f)
 
 
-def check_availability(year: str, month: str) -> dict:
+def check_availability(facility_id: str, year: str, month: str) -> dict:
     last_error: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = requests.get(
-                BASE_URL,
+                availability_url(facility_id),
                 params={"year": year, "month": month, "inventoryBucket": "FIT"},
                 headers=HEADERS,
                 timeout=15,
@@ -62,22 +69,20 @@ def _trailhead_dates(trailhead: dict, default_dates: list[str]) -> list[str]:
     return list(dict.fromkeys(dates))
 
 
-def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
-    """Check availability for every trailhead/date.
+def _find_in_facility(facility: dict, found: dict[str, list[str]]) -> tuple[int, int]:
+    """Check one facility, recording hits into ``found``.
 
-    Each trailhead is checked against the global ``config["dates"]`` unless it
-    defines its own ``dates`` list, which scopes that trailhead to those dates.
-
-    Returns ``(found, all_failed)`` where ``found`` is
-    ``{trailhead_name: [available_date, ...]}`` and ``all_failed`` is True when
-    every API request errored (so the caller can distinguish a broken checker
-    from a genuine "nothing available" result).
+    Returns ``(attempts, failures)`` for this facility's API calls. Each
+    trailhead is checked against the facility's ``dates`` unless it defines its
+    own ``dates`` list, which scopes that trailhead to those dates.
     """
-    default_dates = list(dict.fromkeys(config["dates"]))  # deduplicate, preserve order
+    facility_id = facility["facility_id"]
+    facility_name = facility.get("name", facility_id)
+    default_dates = list(dict.fromkeys(facility.get("dates", [])))
 
     # Resolve the set of dates each trailhead actually cares about.
     dates_by_trailhead = {
-        t["name"]: _trailhead_dates(t, default_dates) for t in config["trailheads"]
+        t["name"]: _trailhead_dates(t, default_dates) for t in facility["trailheads"]
     }
 
     # Union of every relevant date determines which months we need to query.
@@ -91,7 +96,6 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
         dt = datetime.strptime(d, "%Y-%m-%d")
         by_month[dt.strftime("%Y-%m")].append(d)
 
-    found: dict[str, list[str]] = defaultdict(list)
     attempts = 0
     failures = 0
 
@@ -100,10 +104,10 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
         year, month = ym.split("-")
         attempts += 1
         try:
-            data = check_availability(year, month)
+            data = check_availability(facility_id, year, month)
         except requests.RequestException as e:
             failures += 1
-            print(f"  request error ({ym}): {e}", file=sys.stderr)
+            print(f"  request error ({facility_name} {ym}): {e}", file=sys.stderr)
             continue
 
         daily = data.get("facility_availability_summary_view_by_local_date", {})
@@ -113,7 +117,7 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
             if not date_data:
                 continue
             tours = date_data.get("tour_availability_summary_view_by_tour_id", {})
-            for trailhead in config["trailheads"]:
+            for trailhead in facility["trailheads"]:
                 name = trailhead["name"]
                 if date_str not in dates_by_trailhead[name]:
                     continue  # this date isn't in scope for this trailhead
@@ -126,6 +130,26 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
                 else:
                     print(f"  unavailable: {name} on {date_str}")
 
+    return attempts, failures
+
+
+def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
+    """Check availability across every facility/trailhead/date.
+
+    Returns ``(found, all_failed)`` where ``found`` is
+    ``{trailhead_name: [available_date, ...]}`` and ``all_failed`` is True when
+    every API request errored (so the caller can distinguish a broken checker
+    from a genuine "nothing available" result).
+    """
+    found: dict[str, list[str]] = defaultdict(list)
+    attempts = 0
+    failures = 0
+
+    for facility in config["facilities"]:
+        f_attempts, f_failures = _find_in_facility(facility, found)
+        attempts += f_attempts
+        failures += f_failures
+
     all_failed = attempts > 0 and failures == attempts
     return found, all_failed
 
@@ -133,7 +157,7 @@ def find_available(config: dict) -> tuple[dict[str, list[str]], bool]:
 def build_email_body(available: dict[str, list[str]], trailhead_map: dict) -> str:
     lines = ["Permit availability found for your dates!\n"]
     for name, dates in available.items():
-        url = trailhead_map.get(name, "https://www.recreation.gov/ticket/300009")
+        url = trailhead_map.get(name, "https://www.recreation.gov")
         for d in sorted(dates):
             lines.append(f"  {name} — {d}")
             lines.append(f"  Book now: {url}?date={d}\n")
@@ -196,11 +220,13 @@ def check_env() -> None:
 def main():
     check_env()
     config = load_config()
-    trailhead_map = {t["name"]: t["url"] for t in config["trailheads"]}
+    facilities = config["facilities"]
+    trailhead_map = {t["name"]: t["url"] for f in facilities for t in f["trailheads"]}
 
+    trailhead_count = sum(len(f["trailheads"]) for f in facilities)
     print(
-        f"Checking {len(config['trailheads'])} trailhead(s) "
-        f"across {len(config['dates'])} date(s)..."
+        f"Checking {trailhead_count} trailhead(s) across "
+        f"{len(facilities)} facilit{'y' if len(facilities) == 1 else 'ies'}..."
     )
     available, all_failed = find_available(config)
 

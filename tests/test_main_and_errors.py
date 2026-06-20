@@ -8,8 +8,16 @@ import requests
 from check_permits import check_env, find_available, main, send_failure_email
 
 CONFIG = {
-    "dates": ["2026-07-04"],
-    "trailheads": [{"name": "Green Lakes", "tour_id": "2003", "url": "https://example.com"}],
+    "facilities": [
+        {
+            "name": "Central Cascades",
+            "facility_id": "300009",
+            "dates": ["2026-07-04"],
+            "trailheads": [
+                {"name": "Green Lakes", "tour_id": "2003", "url": "https://example.com"}
+            ],
+        }
+    ],
 }
 
 
@@ -64,23 +72,25 @@ def test_null_reservable_is_treated_as_zero():
 
 def test_trailhead_dates_override_scopes_to_its_own_dates():
     config = {
-        "dates": ["2026-07-04", "2026-07-05"],
-        "trailheads": [
+        "facilities": [
             {
-                "name": "Green Lakes",
-                "tour_id": "2003",
-                "url": "https://example.com",
-                "dates": ["2026-07-05"],  # only cares about the 5th
+                "name": "Central Cascades",
+                "facility_id": "300009",
+                "dates": ["2026-07-04", "2026-07-05"],
+                "trailheads": [
+                    {
+                        "name": "Green Lakes",
+                        "tour_id": "2003",
+                        "url": "https://example.com",
+                        "dates": ["2026-07-05"],  # only cares about the 5th
+                    }
+                ],
             }
         ],
     }
     payload = {
-        "2026-07-04": {
-            "tour_availability_summary_view_by_tour_id": {"2003": {"reservable": 5}}
-        },
-        "2026-07-05": {
-            "tour_availability_summary_view_by_tour_id": {"2003": {"reservable": 5}}
-        },
+        "2026-07-04": {"tour_availability_summary_view_by_tour_id": {"2003": {"reservable": 5}}},
+        "2026-07-05": {"tour_availability_summary_view_by_tour_id": {"2003": {"reservable": 5}}},
     }
     with patch("check_permits.requests.get", return_value=_make_response(payload)):
         found, all_failed = find_available(config)
@@ -88,6 +98,57 @@ def test_trailhead_dates_override_scopes_to_its_own_dates():
     assert all_failed is False
     # The 4th is available in the API but out of scope; only the 5th is reported.
     assert found["Green Lakes"] == ["2026-07-05"]
+
+
+# --- multiple facilities ----------------------------------------------------
+
+
+def test_each_facility_queried_with_its_own_id_and_dates():
+    config = {
+        "facilities": [
+            {
+                "name": "Central Cascades",
+                "facility_id": "300009",
+                "dates": ["2026-07-04"],
+                "trailheads": [{"name": "Green Lakes", "tour_id": "2003", "url": "https://a.com"}],
+            },
+            {
+                "name": "Enchantments",
+                "facility_id": "233273",
+                "dates": ["2026-08-01"],
+                "trailheads": [{"name": "Snow Lakes", "tour_id": "9999", "url": "https://b.com"}],
+            },
+        ],
+    }
+
+    def fake_get(url, **kwargs):
+        # Return availability only for the tour that belongs to each facility.
+        if "300009" in url:
+            return _make_response(
+                {
+                    "2026-07-04": {
+                        "tour_availability_summary_view_by_tour_id": {"2003": {"reservable": 1}}
+                    }
+                }
+            )
+        return _make_response(
+            {
+                "2026-08-01": {
+                    "tour_availability_summary_view_by_tour_id": {"9999": {"reservable": 2}}
+                }
+            }
+        )
+
+    with patch("check_permits.requests.get", side_effect=fake_get) as mock_get:
+        found, all_failed = find_available(config)
+
+    assert all_failed is False
+    assert found["Green Lakes"] == ["2026-07-04"]
+    assert found["Snow Lakes"] == ["2026-08-01"]
+    # One call per facility (each has a single month).
+    called_urls = [call.args[0] for call in mock_get.call_args_list]
+    assert any("300009" in u for u in called_urls)
+    assert any("233273" in u for u in called_urls)
 
 
 # --- failure alert email ----------------------------------------------------
