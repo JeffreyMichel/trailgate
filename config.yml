@@ -10,34 +10,75 @@ dates:
 
 # Trailheads to check - add or remove as needed
 trailheads:
-  - name: "Devils Lake / South Sister"
-    tour_id: "10088687"
-    url: "https://www.recreation.gov/ticket/300009/ticket/10088687"
-  - name: "Green Lakes / Soda Creek"
-    tour_id: "2003"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2003"
-  - name: "Crater Ditch"
-    tour_id: "2001"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2001"
   - name: "Broken Top"
     tour_id: "2000"
     url: "https://www.recreation.gov/ticket/300009/ticket/2000"
-  - name: "Tam McArthur Rim"
-    tour_id: "2008"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2008"
-  - name: "Todd Lake"
-    tour_id: "2009"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2009"
-  - name: "Obsidian Trail"
-    tour_id: "2005"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2005"
-  - name: "Sisters Mirror"
-    tour_id: "2007"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2007"
-  - name: "Scott Trailhead"
-    tour_id: "2006"
-    url: "https://www.recreation.gov/ticket/300009/ticket/2006"
+
+  - name: "Crater Ditch"
+    tour_id: "2001"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2001"
+
+  - name: "Green Lakes / Soda Creek"
+    tour_id: "2003"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2003"
+
   - name: "Lava Camp"
     tour_id: "2004"
     url: "https://www.recreation.gov/ticket/300009/ticket/2004"
+
+  - name: "Obsidian Trail"
+    tour_id: "2005"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2005"
+
+  - name: "Scott Trailhead"
+    tour_id: "2006"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2006"
+
+  - name: "Sisters Mirror"
+    tour_id: "2007"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2007"
+
+  - name: "Tam McArthur Rim"
+    tour_id: "2008"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2008"
+
+  - name: "Todd Lake"
+    tour_id: "2009"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2009"
+
+  - name: "Devils Lake / South Sister"
+    tour_id: "10088687"
+    url: "https://www.recreation.gov/ticket/300009/ticket/10088687"
+
+  - name: "Duffy Lake"
+    tour_id: "2010"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2010"
+
+  - name: "Jack Lake (Canyon Creek Meadows)"
+    tour_id: "2011"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2011"
+
+  - name: "Marion Lake"
+    tour_id: "2012"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2012"
+
+  - name: "Pamelia Lake"
+    tour_id: "2013"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2013"
+
+  - name: "PCT Breitenbush / Breitenbush Lake"
+    tour_id: "2014"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2014"
+
+  - name: "Whitewater"
+    tour_id: "2016"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2016"
+
+  - name: "Benson / Tenas"
+    tour_id: "2017"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2017"
+
+  - name: "PCT McKenzie Pass"
+    tour_id: "2018"
+    url: "https://www.recreation.gov/ticket/300009/ticket/2018"
 
