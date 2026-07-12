@@ -9,9 +9,8 @@ facilities:
   - name: "Central Cascades Wilderness"
     facility_id: "300009"
     dates:
-      - "2026-07-05"
-      - "2026-07-11"
-      - "2026-07-12"
+      - "2026-07-25"
+      - "2026-07-26"
       - "2026-07-18"
       - "2026-07-19"
     trailheads:
