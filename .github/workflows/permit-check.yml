@@ -1,0 +1,34 @@
+name: Permit Check (fast)
+
+# Slim, dispatch-only path used by the local scheduler (Windows Task Scheduler on
+# the "server" box) to kick off a check at a precise wall-clock time. It skips
+# lint/tests and installs only the runtime deps so check_permits.py runs as soon
+# as possible after dispatch (~30-50s), instead of the ~60-120s that check.yml's
+# full CI pipeline adds. check.yml still covers CI on push and a scheduled backup.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run permit checker
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+        run: python check_permits.py

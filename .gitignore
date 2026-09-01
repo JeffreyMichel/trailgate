@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 .env
 note.txt
+scheduler/gh_token.txt
+scheduler/logs/
