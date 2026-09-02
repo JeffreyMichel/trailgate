@@ -104,7 +104,9 @@ def test_missing_division_or_date_is_not_available():
 
 
 def test_null_remaining_treated_as_zero():
-    availability = {"467531103": {"date_availability": {"2026-09-02T00:00:00Z": {"remaining": None}}}}
+    availability = {
+        "467531103": {"date_availability": {"2026-09-02T00:00:00Z": {"remaining": None}}}
+    }
     with patch("check_permits.requests.get", return_value=_permit_response(availability)):
         found, _ = find_available(PERMIT_CONFIG)
     assert found.get("South Sister (overnight)", []) == []
