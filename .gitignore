@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.venv/
+venv/
 .env
 note.txt
 scheduler/gh_token.txt

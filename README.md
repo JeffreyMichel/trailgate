@@ -76,6 +76,47 @@ its own `dates`. If a facility has no `dates` and a trailhead doesn't either,
 that trailhead is checked against an empty date list — i.e. **nothing happens
 for it** (no API call, no error). Always set `dates` at one level or the other.
 
+#### Overnight permits
+
+`facilities` covers **day-use** permits (recreation.gov's *ticket* API).
+**Overnight** permits use a different API and go under a separate
+`overnight_permits` section, keyed by `permit_id` and `division_id` instead of
+`facility_id` and `tour_id`:
+
+```yaml
+overnight_permits:
+  - name: "Central Cascades Wilderness Overnight"
+    permit_id: "4675311"          # from .../permits/4675311
+    dates:
+      - "2026-07-04"
+    trailheads:
+      - name: "Devils Lake / South Sister (overnight)"
+        division_id: "467531103"  # from the permit's availability grid
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"
+      - name: "Green Lake / Soda Creek (overnight)"
+        division_id: "467531108"
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"
+```
+
+Both sections are optional and can be used together; hits from either land in the
+same email. `dates` and per-trailhead `dates` overrides work identically. Give
+day-use and overnight entries distinct `name`s — a name reused across (or within)
+sections merges their results and logs a warning.
+
+recreation.gov has no per-division deep link, so `url` is the same for every
+division under a permit: use `.../permits/<permit_id>/registration/detailed-availability`.
+The email appends `?date=<date>`, landing you on that date's availability grid
+where you click the division's cell.
+
+| Field | Level | Required | Default |
+|---|---|---|---|
+| `permit_id` | permit | Yes | — |
+| `name` | permit | No | falls back to `permit_id` in log output |
+| `dates` | permit | No* | empty — same rule as facilities |
+| `trailheads` | permit | Yes | — |
+| `name`, `division_id`, `url` | trailhead | Yes | — |
+| `dates` | trailhead | No | inherits the permit's `dates` |
+
 ### 2. Add GitHub Secrets
 
 In your repo go to **Settings → Secrets and variables → Actions** and add:

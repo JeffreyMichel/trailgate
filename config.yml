@@ -1,10 +1,19 @@
-# One entry per recreation.gov facility you want to watch.
+# ---------------------------------------------------------------------------
+# facilities:        DAY-USE permits (recreation.gov "ticket" API)
+# overnight_permits: OVERNIGHT permits (recreation.gov "permits" API)
+# Both sections are optional; list only what you want to watch.
 #
-# facility_id : the numeric id from the recreation.gov URL
-#               (e.g. .../ticket/300009/... -> "300009")
-# dates       : dates to check for this facility (YYYY-MM-DD). A trailhead may
-#               override these with its own `dates:` list to narrow its window.
-# trailheads  : the tours/permits within the facility to check.
+# Shared keys:
+#   dates      : dates to check (YYYY-MM-DD). A trailhead may override with its
+#                own `dates:` list to narrow its window.
+#   trailheads : the entries to check within the facility/permit.
+#
+# facilities[].facility_id   : numeric id from the URL .../ticket/300009/... -> "300009"
+# facilities[].trailheads[]  : name, tour_id, url
+#
+# overnight_permits[].permit_id     : numeric id from .../permits/4675311 -> "4675311"
+# overnight_permits[].trailheads[]  : name, division_id, url
+# ---------------------------------------------------------------------------
 facilities:
   - name: "Central Cascades Wilderness"
     facility_id: "300009"
@@ -82,3 +91,40 @@ facilities:
       - name: "PCT McKenzie Pass"
         tour_id: "2018"
         url: "https://www.recreation.gov/ticket/300009/ticket/2018"
+
+overnight_permits:
+  - name: "Central Cascades Wilderness Overnight"
+    permit_id: "4675311"
+    dates:
+      - "2026-09-02"
+    trailheads:
+      # division_id comes from the permit's availability grid on recreation.gov.
+      # Full list for permit 4675311:
+      #   467531100 Box Canyon/Crossing Way        467531114 Duffy Lake/Big Meadows
+      #   467531101 Broken Top/Crater Ditch        467531115 Jack Lake (Canyon Creek Meadows)
+      #   467531102 Chush Falls                    467531116 Jefferson Lake
+      #   467531103 Devil's Lake/Wickiup (S Sister) 467531117 Marion Lake
+      #   467531104 East Fork, Upper & Lower       467531118 Pamelia Lake
+      #   467531105 Elk Lake                       467531119 PCT Breitenbush / Breitenbush Lake
+      #   467531106 Foley                          467531120 Benson/Tenas
+      #   467531107 French Pete                    467531122 Hand Lake
+      #   467531108 Green Lake/Soda Creek          467531124 Patjens
+      #   467531109 Horse Creek/Rainbow            467531125 PCT Big Lake
+      #   467531110 Bear Valley                    467531126 PCT McKenzie Pass
+      #   467531111 Bingham Ridge/Minto Mountain   467531127 Robinson Lake
+      #   467531112 Cabot Lake                     467531128 Tenas Lakes/Fingerboard Prairie
+      #   467531113 Crown Lake/Roaring Creek
+      # recreation.gov has no per-division deep link; this lands on the dated
+      # availability grid (the checker appends ?date=), where you click the
+      # division's cell. Same URL for every division under the permit.
+      - name: "Devils Lake / South Sister (overnight)"
+        division_id: "467531103"
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"
+
+      - name: "Green Lake / Soda Creek (overnight)"
+        division_id: "467531108"
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"
+
+      - name: "Broken Top / Crater Ditch (overnight)"
+        division_id: "467531101"
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"
