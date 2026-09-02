@@ -28,15 +28,23 @@ if (-not $gh) {
 if (-not $gh) { Log 'ERROR  gh CLI not found on PATH'; exit 1 }
 
 # --- auth token ------------------------------------------------------------
-# Prefer an already-set GH_TOKEN / GITHUB_TOKEN; otherwise read a local file
+# Prefer an explicit GH_TOKEN / GITHUB_TOKEN, then a local file
 # (scheduler/gh_token.txt, git-ignored). A fine-grained PAT with
 # "Actions: Read and write" on the trailgate repo is enough.
+#
+# If none is set we fall through to gh's own stored auth (`gh auth login`).
+# That works for interactive runs; for the unattended scheduled task the token
+# file is more reliable, since the S4U task may not reach the credential store.
 if (-not $env:GH_TOKEN -and $env:GITHUB_TOKEN) { $env:GH_TOKEN = $env:GITHUB_TOKEN }
 if (-not $env:GH_TOKEN) {
     $tokenFile = Join-Path $PSScriptRoot 'gh_token.txt'
     if (Test-Path $tokenFile) { $env:GH_TOKEN = (Get-Content -Raw $tokenFile).Trim() }
 }
-if (-not $env:GH_TOKEN) { Log 'ERROR  no GH_TOKEN and no scheduler/gh_token.txt'; exit 1 }
+if (-not $env:GH_TOKEN) {
+    & $gh auth status 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Log 'ERROR  no GH_TOKEN, no gh_token.txt, and gh is not logged in'; exit 1 }
+    Log 'NOTE  no explicit token; using gh stored auth'
+}
 
 # --- dispatch ------------------------------------------------------------
 try {
