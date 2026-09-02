@@ -6,7 +6,12 @@ import pytest
 import requests
 
 import check_permits
-from check_permits import check_overnight_availability, find_available
+from check_permits import (
+    build_trailhead_map,
+    check_overnight_availability,
+    find_available,
+    main,
+)
 
 PERMIT_CONFIG = {
     "overnight_permits": [
@@ -33,8 +38,7 @@ def _permit_response(availability: dict) -> MagicMock:
 def _division(date_to_remaining: dict[str, int]) -> dict:
     return {
         "date_availability": {
-            f"{d}T00:00:00Z": {"total": 5, "remaining": r}
-            for d, r in date_to_remaining.items()
+            f"{d}T00:00:00Z": {"total": 5, "remaining": r} for d, r in date_to_remaining.items()
         }
     }
 
@@ -145,6 +149,75 @@ def test_trailhead_date_override_scopes_to_its_own_dates():
     assert found["South Sister (overnight)"] == ["2026-09-03"]
 
 
+def test_dates_across_two_months_make_separate_calls():
+    config = {
+        "overnight_permits": [
+            {
+                "name": "Central Cascades Overnight",
+                "permit_id": "4675311",
+                "dates": ["2026-09-30", "2026-10-01"],
+                "trailheads": [{"name": "South Sister (overnight)", "division_id": "467531103"}],
+            }
+        ],
+    }
+
+    def fake_get(url, **kwargs):
+        start = kwargs["params"]["start_date"]
+        month = "2026-09-30" if start.startswith("2026-09") else "2026-10-01"
+        return _permit_response({"467531103": _division({month: 1})})
+
+    with patch("check_permits.requests.get", side_effect=fake_get) as mock_get:
+        found, all_failed = find_available(config)
+
+    assert all_failed is False
+    assert sorted(found["South Sister (overnight)"]) == ["2026-09-30", "2026-10-01"]
+    starts = sorted(c.kwargs["params"]["start_date"] for c in mock_get.call_args_list)
+    assert starts == ["2026-09-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z"]
+
+
+def test_extra_dates_in_response_are_ignored():
+    # The API returns the whole month; only the configured date is reported on.
+    availability = {"467531103": _division({"2026-09-01": 5, "2026-09-02": 3, "2026-09-09": 5})}
+    with patch("check_permits.requests.get", return_value=_permit_response(availability)):
+        found, _ = find_available(PERMIT_CONFIG)
+    assert found["South Sister (overnight)"] == ["2026-09-02"]
+
+
+def test_null_payload_does_not_crash():
+    resp = MagicMock()
+    resp.json.return_value = {"payload": None}
+    resp.raise_for_status.return_value = None
+    with patch("check_permits.requests.get", return_value=resp):
+        found, all_failed = find_available(PERMIT_CONFIG)
+    assert found == {}
+    assert all_failed is False
+
+
+def test_build_trailhead_map_warns_on_duplicate_name(capsys):
+    facilities = [{"trailheads": [{"name": "South Sister", "url": "https://day-use.example"}]}]
+    overnight = [{"trailheads": [{"name": "South Sister", "url": "https://overnight.example"}]}]
+    mapping = build_trailhead_map(facilities, overnight)
+    assert mapping["South Sister"] == "https://overnight.example"  # last wins
+    assert "duplicate trailhead name" in capsys.readouterr().err
+
+
+def test_overnight_trailhead_url_is_required(monkeypatch):
+    monkeypatch.setenv("GMAIL_ADDRESS", "a@b.com")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "pw")
+    config = {
+        "overnight_permits": [
+            {
+                "permit_id": "4675311",
+                "dates": [],
+                "trailheads": [{"name": "no url", "division_id": "467531103"}],
+            }
+        ],
+    }
+    with patch("check_permits.load_config", return_value=config):
+        with pytest.raises(KeyError):
+            main()
+
+
 def test_day_use_and_overnight_combine_in_one_result():
     config = {
         "facilities": [
@@ -152,9 +225,7 @@ def test_day_use_and_overnight_combine_in_one_result():
                 "name": "Day Use",
                 "facility_id": "300009",
                 "dates": ["2026-09-02"],
-                "trailheads": [
-                    {"name": "Green Lakes", "tour_id": "2003", "url": "https://a.com"}
-                ],
+                "trailheads": [{"name": "Green Lakes", "tour_id": "2003", "url": "https://a.com"}],
             }
         ],
         "overnight_permits": PERMIT_CONFIG["overnight_permits"],

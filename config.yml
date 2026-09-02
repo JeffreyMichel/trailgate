@@ -12,7 +12,7 @@
 # facilities[].trailheads[]  : name, tour_id, url
 #
 # overnight_permits[].permit_id     : numeric id from .../permits/4675311 -> "4675311"
-# overnight_permits[].trailheads[]  : name, division_id  (url optional)
+# overnight_permits[].trailheads[]  : name, division_id, url
 # ---------------------------------------------------------------------------
 facilities:
   - name: "Central Cascades Wilderness"
@@ -114,11 +114,17 @@ overnight_permits:
       #   467531111 Bingham Ridge/Minto Mountain   467531127 Robinson Lake
       #   467531112 Cabot Lake                     467531128 Tenas Lakes/Fingerboard Prairie
       #   467531113 Crown Lake/Roaring Creek
+      # recreation.gov has no per-division deep link; this lands on the dated
+      # availability grid (the checker appends ?date=), where you click the
+      # division's cell. Same URL for every division under the permit.
       - name: "Devils Lake / South Sister (overnight)"
         division_id: "467531103"
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"
 
       - name: "Green Lake / Soda Creek (overnight)"
         division_id: "467531108"
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"
 
       - name: "Broken Top / Crater Ditch (overnight)"
         division_id: "467531101"
+        url: "https://www.recreation.gov/permits/4675311/registration/detailed-availability"

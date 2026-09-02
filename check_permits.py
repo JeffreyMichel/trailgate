@@ -47,16 +47,18 @@ def load_config(path="config.yml"):
         return yaml.safe_load(f)
 
 
-def check_availability(facility_id: str, year: str, month: str) -> dict:
+def _get_json_with_retries(url: str, params: dict) -> dict:
+    """GET ``url`` and return the parsed JSON, retrying on transient errors.
+
+    recreation.gov rate-limits / blocks scrapers, so both availability APIs share
+    this behaviour: up to ``MAX_RETRIES`` attempts with a linearly growing
+    ``RETRY_BACKOFF_SECONDS`` delay, logging 403/429 responses. Re-raises the last
+    error if every attempt fails.
+    """
     last_error: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resp = requests.get(
-                availability_url(facility_id),
-                params={"year": year, "month": month, "inventoryBucket": "FIT"},
-                headers=HEADERS,
-                timeout=15,
-            )
+            resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
             resp.raise_for_status()
             return resp.json()
         except requests.RequestException as e:
@@ -70,38 +72,24 @@ def check_availability(facility_id: str, year: str, month: str) -> dict:
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF_SECONDS * attempt)
     raise last_error  # type: ignore[misc]
+
+
+def check_availability(facility_id: str, year: str, month: str) -> dict:
+    """Monthly availability for a day-use facility (ticketed API)."""
+    return _get_json_with_retries(
+        availability_url(facility_id),
+        {"year": year, "month": month, "inventoryBucket": "FIT"},
+    )
 
 
 def check_overnight_availability(permit_id: str, year: str, month: str) -> dict:
     """Monthly availability for a recreation.gov overnight permit.
 
-    Same retry/backoff behaviour as ``check_availability``. One call returns the
-    whole month starting at the 1st; the response payload is keyed by
-    ``division_id``.
+    One call returns the whole month starting at the 1st; the response payload is
+    keyed by ``division_id``.
     """
     start = f"{year}-{month}-01T00:00:00.000Z"
-    last_error: Exception | None = None
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            resp = requests.get(
-                overnight_availability_url(permit_id),
-                params={"start_date": start},
-                headers=HEADERS,
-                timeout=15,
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except requests.RequestException as e:
-            last_error = e
-            status = getattr(e.response, "status_code", None)
-            if status in (403, 429):
-                print(
-                    f"  rate-limited/blocked (HTTP {status}), attempt {attempt}/{MAX_RETRIES}",
-                    file=sys.stderr,
-                )
-            if attempt < MAX_RETRIES:
-                time.sleep(RETRY_BACKOFF_SECONDS * attempt)
-    raise last_error  # type: ignore[misc]
+    return _get_json_with_retries(overnight_availability_url(permit_id), {"start_date": start})
 
 
 def _trailhead_dates(trailhead: dict, default_dates: list[str]) -> list[str]:
@@ -115,6 +103,26 @@ def _trailhead_dates(trailhead: dict, default_dates: list[str]) -> list[str]:
     return list(dict.fromkeys(dates))
 
 
+def _dates_by_month(
+    trailheads: list[dict], default_dates: list[str]
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Resolve each trailhead's dates and group their union by year-month.
+
+    Shared by the facility and overnight-permit paths. Returns
+    ``(dates_by_trailhead, by_month)`` where ``by_month`` maps ``"YYYY-MM"`` to
+    the target dates in that month, so callers make one API call per month.
+    """
+    dates_by_trailhead = {t["name"]: _trailhead_dates(t, default_dates) for t in trailheads}
+    all_target_dates = list(
+        dict.fromkeys(d for dates in dates_by_trailhead.values() for d in dates)
+    )
+    by_month: dict[str, list[str]] = defaultdict(list)
+    for d in all_target_dates:
+        dt = datetime.strptime(d, "%Y-%m-%d")
+        by_month[dt.strftime("%Y-%m")].append(d)
+    return dates_by_trailhead, by_month
+
+
 def _find_in_facility(facility: dict, found: dict[str, list[str]]) -> tuple[int, int]:
     """Check one facility, recording hits into ``found``.
 
@@ -125,22 +133,7 @@ def _find_in_facility(facility: dict, found: dict[str, list[str]]) -> tuple[int,
     facility_id = facility["facility_id"]
     facility_name = facility.get("name", facility_id)
     default_dates = list(dict.fromkeys(facility.get("dates", [])))
-
-    # Resolve the set of dates each trailhead actually cares about.
-    dates_by_trailhead = {
-        t["name"]: _trailhead_dates(t, default_dates) for t in facility["trailheads"]
-    }
-
-    # Union of every relevant date determines which months we need to query.
-    all_target_dates = list(
-        dict.fromkeys(d for dates in dates_by_trailhead.values() for d in dates)
-    )
-
-    # Group dates by year-month to minimize API calls
-    by_month: dict[str, list[str]] = defaultdict(list)
-    for d in all_target_dates:
-        dt = datetime.strptime(d, "%Y-%m-%d")
-        by_month[dt.strftime("%Y-%m")].append(d)
+    dates_by_trailhead, by_month = _dates_by_month(facility["trailheads"], default_dates)
 
     attempts = 0
     failures = 0
@@ -190,18 +183,7 @@ def _find_in_permit(permit: dict, found: dict[str, list[str]]) -> tuple[int, int
     permit_id = permit["permit_id"]
     permit_name = permit.get("name", permit_id)
     default_dates = list(dict.fromkeys(permit.get("dates", [])))
-
-    dates_by_trailhead = {
-        t["name"]: _trailhead_dates(t, default_dates) for t in permit["trailheads"]
-    }
-    all_target_dates = list(
-        dict.fromkeys(d for dates in dates_by_trailhead.values() for d in dates)
-    )
-
-    by_month: dict[str, list[str]] = defaultdict(list)
-    for d in all_target_dates:
-        dt = datetime.strptime(d, "%Y-%m-%d")
-        by_month[dt.strftime("%Y-%m")].append(d)
+    dates_by_trailhead, by_month = _dates_by_month(permit["trailheads"], default_dates)
 
     attempts = 0
     failures = 0
@@ -217,13 +199,12 @@ def _find_in_permit(permit: dict, found: dict[str, list[str]]) -> tuple[int, int
             print(f"  request error ({permit_name} {ym}): {e}", file=sys.stderr)
             continue
 
-        by_division = data.get("payload", {}).get("availability", {})
+        by_division = (data.get("payload") or {}).get("availability") or {}
 
         for trailhead in permit["trailheads"]:
             name = trailhead["name"]
-            day_avail = by_division.get(trailhead["division_id"], {}).get(
-                "date_availability", {}
-            )
+            division = by_division.get(trailhead["division_id"]) or {}
+            day_avail = division.get("date_availability") or {}
             for date_str in dates_in_month:
                 if date_str not in dates_by_trailhead[name]:
                     continue  # this date isn't in scope for this trailhead
@@ -327,25 +308,42 @@ def check_env() -> None:
         raise SystemExit(f"Missing required environment variable(s): {', '.join(missing)}")
 
 
+def build_trailhead_map(facilities: list[dict], overnight: list[dict]) -> dict[str, str]:
+    """Map every trailhead name to its booking ``url``, warning on collisions.
+
+    ``found`` is keyed by trailhead ``name`` across both sections, so a name
+    reused between (or within) sections silently merges results in the email.
+    Warn to stderr so that stays visible. ``url`` is required on every trailhead
+    in both sections.
+    """
+    trailhead_map: dict[str, str] = {}
+    for entry in (*facilities, *overnight):
+        for t in entry["trailheads"]:
+            name = t["name"]
+            if name in trailhead_map:
+                print(
+                    f"  WARNING: duplicate trailhead name {name!r} — its results will merge",
+                    file=sys.stderr,
+                )
+            trailhead_map[name] = t["url"]
+    return trailhead_map
+
+
 def main():
     check_env()
     config = load_config()
     facilities = config.get("facilities", [])
     overnight = config.get("overnight_permits", [])
 
-    trailhead_map = {t["name"]: t["url"] for f in facilities for t in f["trailheads"]}
-    for permit in overnight:
-        fallback_url = f"https://www.recreation.gov/permits/{permit['permit_id']}"
-        for t in permit["trailheads"]:
-            trailhead_map[t["name"]] = t.get("url", fallback_url)
+    trailhead_map = build_trailhead_map(facilities, overnight)
 
-    source_count = len(facilities) + len(overnight)
     trailhead_count = sum(len(f["trailheads"]) for f in facilities) + sum(
         len(p["trailheads"]) for p in overnight
     )
     print(
         f"Checking {trailhead_count} trailhead(s) across "
-        f"{source_count} facilit{'y' if source_count == 1 else 'ies'}/permit(s)..."
+        f"{len(facilities)} facilit{'y' if len(facilities) == 1 else 'ies'} "
+        f"and {len(overnight)} overnight permit(s)..."
     )
     available, all_failed = find_available(config)
 
