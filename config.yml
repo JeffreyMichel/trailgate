@@ -9,7 +9,7 @@ facilities:
   - name: "Central Cascades Wilderness"
     facility_id: "300009"
     dates:
-      - "2026-08-30"
+      - "2026-09-02"
     trailheads:
       - name: "Broken Top"
         tour_id: "2000"
